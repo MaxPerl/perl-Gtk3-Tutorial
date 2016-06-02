@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<interface>
+  <menu id="appmenu">
+    <section>
+      <item>
+        <attribute name="label">New</attribute>
+        <attribute name="action">win.new</attribute>
+      </item>
+      <item>
+        <attribute name="label">Open</attribute>
+        <attribute name="action">win.open</attribute>
+      </item>
+    </section>
+    <section>
+      <item>
+        <attribute name="label">Save</attribute>
+        <attribute name="action">win.save</attribute>
+      </item>
+      <item>
+        <attribute name="label">Save As...</attribute>
+        <attribute name="action">win.save-as</attribute>
+      </item>
+    </section>
+    <section>
+      <item>
+        <attribute name="label">Quit</attribute>
+        <attribute name="action">app.quit</attribute>
+      </item>
+    </section>
+  </menu>
+</interface>

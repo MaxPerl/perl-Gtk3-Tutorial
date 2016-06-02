@@ -1,0 +1,17 @@
+<?xml version="1.0"? encoding="UTF-8"?>
+<interface>
+	<menu id="menubar">
+		<submenu>
+			<attribute name="label">File</attribute>
+		</submenu>
+		<submenu>
+			<attribute name="label">Edit</attribute>
+		</submenu>
+		<submenu>
+			<attribute name="label">Choices</attribute>
+		</submenu>
+		<submenu>
+			<attribute name="label">Help</attribute>
+		</submenu>
+	</menu>
+</interface>
