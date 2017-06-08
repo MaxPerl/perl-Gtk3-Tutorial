@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<Package>
+  <DisplayName>MyApp 64bit base</DisplayName>
+  <Description>Please add here the description of your App</Description>
+  <Version>@VERSION@</Version>
+  <ReleaseDate>@DATE@</ReleaseDate>
+  <Default>true</Default>
+  <Script>installscript.js</Script>
+</Package>
