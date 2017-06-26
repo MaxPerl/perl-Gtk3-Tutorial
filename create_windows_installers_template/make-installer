@@ -135,12 +135,12 @@ create_archive() {
   done
 
   if [ -n "$_dirs" ]; then
-    _compress_cmd="${_archivegen} ${_data}/gedit.7z ${_dirs}"
+    _compress_cmd="${_archivegen} ${_data}/data.7z ${_dirs}"
     pushd / > /dev/null
     eval ${_compress_cmd} | tee $_log 2>&1
     _result=$?
     if [ "$_result" -eq "0" ]; then
-          echo " archivegen succeeded. Created ${_data}/gedit.7z"
+          echo " archivegen succeeded. Created ${_data}/data.7z"
     else
           exit_cleanly "3" "archivegen failed. See $_log"
     fi
@@ -219,7 +219,7 @@ fi
 echo "Installing Application into ${_builddir}"
 install_application_packages
 
-echo "Creating gedit installer /tmp/$_filename"
+echo "Creating the installer /tmp/$_filename"
 [ -f /tmp/$_filename ] && rm -f /tmp/$_filename
 
 do_seds
