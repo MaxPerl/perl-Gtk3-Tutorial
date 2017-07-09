@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<Installer>
-    <Name>MyApp</Name>
-    <Version>@VERSION@</Version>
-    <Title>MyApp 64bit</Title>
-    <Publisher>Me</Publisher>
-    <ProductUrl>http://www.MyAppLinkToWebsite.org</ProductUrl>
-    <StartMenuDir>MyApp 64bit</StartMenuDir>
-</Installer>
