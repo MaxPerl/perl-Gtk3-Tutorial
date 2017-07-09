@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+
+_thisdir="$(dirname $0)"
+test "${_thisdir}" = "." && _thisdir=${PWD}
+_ifwroot="${_thisdir}"/qt-ifw
+_arch=$(uname -m)
+_date=$(date +'%Y%m%d')
+_dateqif=$(date +'%Y-%m-%d')
+_log=/tmp/installer.log
+
+############################
+# CUSTOM SETTINGS
+# Adjust the settings below
+############################
+# the version of your Application
+_version=1.0
+# The Filename of your setup file which will be created:
+_filename=MyApp-${_arch}-${_version}.exe
+# the directory where the setup file is built
+_builddir=/tmp/MyApp
+# the location of the perl-gtk3 installation script
+_perlgtkinstallscript=./install-perl-Gtk3-mingw64.pl
+
+
+if [ "${_arch}" = "x86_64" ]; then
+  _bitness=64
+else
+  _bitness=32
+fi
+
+declare -a undo_commands
+
+_exitcode=5
+
+usage() {
+  echo "Usage: $0 stage#"
+  exit 1
+}
+
+if [ "$#" != "1" ]; then
+  usage
+fi
+
+_stage="$1"
+case "${_stage}" in
+  stage1 | stage2)
+    ;;
+  *)
+    usage
+    ;;
+esac
+
+exit_with_undo() {
+  for _cmd in ${undo_commands[@]}; do
+    eval "$_cmd"
+  done
+  exit ${_exitcode}
+}
+
+exit_cleanly() {
+  _exitcode=$1; shift;
+  local _message=$1; shift;
+  echo "${_message}"
+  exit_with_undo
+}
+
+do_seds() {
+  find "${_ifwroot}" \( -name "package.xml" -or -name "config.xml" \) -exec sed -i "s|@DATE@|${_dateqif}|g" "{}" \;
+  find "${_ifwroot}" \( -name "package.xml" -or -name "config.xml" \) -exec sed -i "s|@VERSION@|${_version}|g" "{}" \;
+  undo_commands+=("undo_seds")
+}
+
+undo_seds() {
+  find "${_ifwroot}" \( -name "package.xml" -or -name "config.xml" \) -exec sed -i "s|<ReleaseDate>${_dateqif}<|<ReleaseDate>@DATE@<|g" "{}" \;
+  find "${_ifwroot}" \( -name "package.xml" -or -name "config.xml" \) -exec sed -i "s|<Version>${_version}<|<Version>@VERSION@<|g" "{}" \;
+}
+
+# Add -v to get more information.
+make_installer() {
+  "${_binarycreator}" \
+    -t "${_installerbase}" \
+    -p "${_ifwroot}/packages" \
+    -c "${_ifwroot}/config/config.xml" \
+    --offline-only \
+    "${_filename}" \
+    -v
+}
+
+trap exit_with_undo 1 2 15
+
+_archivegen=/mingw${_bitness}/bin/archivegen.exe
+_binarycreator=/mingw${_bitness}/bin/binarycreator.exe
+_installerbase=/mingw${_bitness}/bin/installerbase.exe
+
+create_archive() {
+  local _data="${_ifwroot}"/packages/org.gnome.MyApp.root.base/data
+  [ -d "${_data}" ] && rm -rf "${_data}"
+
+  # remove .a files not needed for the installer
+  find ${_builddir} -name "*.a" -exec rm -f {} \;
+  # remove unneeded binaries
+  #find ${_builddir}/mingw${_bitness} -not -name "g*.exe" -name "*.exe" -exec rm -f {} \;
+  rm -rf ${_builddir}/mingw${_bitness}/bin/py*
+  rm -rf ${_builddir}/mingw${_bitness}/bin/*-config
+  # remove other useless folders
+  rm -rf ${_builddir}/mingw${_bitness}/share/man
+  rm -rf ${_builddir}/mingw${_bitness}/share/readline
+  rm -rf ${_builddir}/mingw${_bitness}/share/info
+  rm -rf ${_builddir}/mingw${_bitness}/share/aclocal
+  rm -rf ${_builddir}/mingw${_bitness}/share/gnome-common
+  rm -rf ${_builddir}/mingw${_bitness}/share/glade
+  rm -rf ${_builddir}/mingw${_bitness}/share/gettext
+  rm -rf ${_builddir}/mingw${_bitness}/share/terminfo
+  rm -rf ${_builddir}/mingw${_bitness}/share/tabset
+  rm -rf ${_builddir}/mingw${_bitness}/share/pkgconfig
+  rm -rf ${_builddir}/mingw${_bitness}/share/bash-completion
+  rm -rf ${_builddir}/mingw${_bitness}/share/appdata
+  rm -rf ${_builddir}/mingw${_bitness}/share/gdb
+  # on windows we show the online help
+  rm -rf ${_builddir}/mingw${_bitness}/share/help
+  rm -rf ${_builddir}/mingw${_bitness}/share/gtk-doc
+  rm -rf ${_builddir}/mingw${_bitness}/share/doc
+  # remove on the lib folder
+  rm -rf ${_builddir}/mingw${_bitness}/lib/terminfo
+  rm -rf ${_builddir}/mingw${_bitness}/lib/python2*
+  rm -rf ${_builddir}/mingw${_bitness}/lib/pkgconfig
+  rm -rf ${_builddir}/mingw${_bitness}/lib/peas-demo
+
+  mkdir -p "${_data}"
+  _dirs=
+  for curr_dir in /bin /etc /lib /share; do
+    if [[ -d ${_builddir}/mingw${_bitness}/$curr_dir || -f ${_builddir}/mingw${_bitness}/$curr_dir ]]; then
+      _dirs="${_dirs} ${_builddir}/mingw${_bitness}/$curr_dir"
+    fi
+  done
+
+  if [ -n "$_dirs" ]; then
+    _compress_cmd="${_archivegen} ${_data}/data.7z ${_dirs}"
+    pushd / > /dev/null
+    eval ${_compress_cmd} | tee $_log 2>&1
+    _result=$?
+    if [ "$_result" -eq "0" ]; then
+          echo " archivegen succeeded. Created ${_data}/data.7z"
+    else
+          exit_cleanly "3" "archivegen failed. See $_log"
+    fi
+    popd > /dev/null
+  fi
+
+  # copy the license
+  cp ../COPYING "${_ifwroot}"/packages/org.gnome.MyApp.root.base/meta/gpl2.txt
+}
+
+create_chroot_system() {
+  [ -d ${_builddir} ] && rm -rf ${_builddir}
+  mkdir -p "${_builddir}"
+  pushd "${_builddir}" > /dev/null
+
+  mkdir -p var/lib/pacman
+  mkdir -p var/log
+  mkdir -p tmp
+
+  pacman -Syu --root "${_builddir}"
+  pacman -S filesystem bash pacman --noconfirm --root "${_builddir}"
+  _result=$?
+  if [ "$_result" -ne "0" ]; then
+    exit_cleanly "1" "failed to create base data via command 'pacman -S filesystem bash pacman --noconfirm --root ${_builddir}'"
+  fi
+  popd > /dev/null
+}
+
+#######################################
+# INSTALLATION OF YOUR APPLICATION
+# Put into the next function all commands
+# that are necessary to install your Application
+# into the Fake-root directory
+########################################
+install_application_packages() {
+  # Installing Perl
+  pacman -S mingw-w64-x86_64-perl --noconfirm --root "${_builddir}"
+  _result=$?
+  if [ "$_result" -ne "0" ]; then
+    exit_cleanly "1" "failed to create builddir via command 'pacman -S mingw-w64-x86_64-perl --noconfirm --root ${_builddir}'"
+  fi
+
+  # some packages are pulled by the deps but we do not need them like python2
+  pacman -Rdd mingw-w64-${_arch}-python2 --noconfirm --root "${_builddir}"
+  pacman -Rdd mingw-w64-${_arch}-gtk2 --noconfirm --root "${_builddir}"
+  
+  # Installing the Perl-Gtk3 Module
+  perl ${_perlgtkinstallscript} -n -d ${_builddir}/
+  _result=$?
+  if [ "$_result" -ne "0" ]; then
+  	exit_cleanly "1" "failed to create builddir via command 'perl ${_perlgtkinstallscript} -d ${_builddir}/'"
+  fi
+
+  ##################################
+  # Put here the commands that are necessary to install your application:
+  # for example:
+  # cp /home/maximilian/MyApp.pl 	${_builddir}/mingw64/bin
+  # pl2bat ${_builddir}/mingw64/bin/MyApp.pl
+  #
+}
+
+if [ ! -f "${_archivegen}" ]; then
+  eval "pacman -S --noconfirm mingw${_bitness}/mingw-w64-${_arch}-qt-installer-framework-git" | tee $_log 2>&1
+fi
+
+if [ ! -f "${_archivegen}" ]; then
+  exit_cleanly "2" "installation of qt installer framework failed. See $_log"
+fi
+
+if [ "${_stage}" = "stage1" ]; then
+  echo "Creating chroot system ${_builddir}"
+  create_chroot_system
+  exit 0
+fi
+
+echo "Installing Application into ${_builddir}"
+install_application_packages
+
+echo "Creating the installer /tmp/$_filename"
+[ -f /tmp/$_filename ] && rm -f /tmp/$_filename
+
+do_seds
+create_archive
+make_installer
+exit_cleanly "0" "All done, see ${_filename}"
